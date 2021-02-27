@@ -1,4 +1,4 @@
-import pygame
+import pygame, ravenui
 from pygame.locals import *
 import sys, os, traceback
 import random
@@ -10,7 +10,6 @@ if sys.platform in ["win32", "win64"]: os.environ["SDL_VIDEO_CENTERED"] = "1"
 pygame.display.init()
 pygame.font.init()
 
-num_particles = NUM_PARTICLES
 # Whether collisions are enabled
 collisions = True
 # Whether to contrain particles to the edges.  Not affected by the collisions enabled flag.
@@ -26,20 +25,15 @@ dt = 1.0 / target_fps
 
 clock = pygame.time.Clock()
 
-#if num_particles == -1:
-#    while True:
-#        try:
-#            num_particles = int(input("Number of particles: "))
-#            break
-#        except:
-#            print("Could not parse number.")
-num_particles_orig = num_particles
+COLLIDE_RATIO = 0.5
 new_particles = []
 dead_particles = []
 start = 0
+running = False
 exploding = True
 set_center = FIX_CENTER
 biggest = None
+paused = False
 
 screen_size = [WIDTH, HEIGHT]
 icon = pygame.Surface((1, 1));
@@ -48,6 +42,45 @@ pygame.display.set_icon(icon)
 pygame.display.set_caption("Space Simulator")
 surface = pygame.display.set_mode(screen_size)
 
+def start_sim():
+    global running, paused
+    running = True
+    pause_button.show()
+    start_button.hide()
+    paused = False
+
+def pause_sim():
+    global paused
+    start_button.show()
+    pause_button.hide()
+    paused = True
+
+def new():
+    global exploding, set_center, start, paused, running, COLLIDE_RATIO
+    COLLIDE_RATIO = ratio_slider.val
+    pause_button.show()
+    start_button.hide()
+    paused = False
+    running = True
+    setup_particles()
+    for i in range(0, START_CYCLES):
+        explode(i)
+    exploding = False
+    set_center = FIX_CENTER
+    start = pygame.time.get_ticks()
+
+# UI elements
+ui = ravenui.UI(surface)
+particles_slider = ravenui.Slider(ui, "Particles", (10, 10), START_NUM_PARTICLES, MAX_NUM_PARTICLES, 1)
+gravity_slider = ravenui.Slider(ui, "Gravity", (112, 10), START_G, MAX_G, 0, True)
+force_slider = ravenui.Slider(ui, "Nova Force", (214, 10), START_NOVA_FORCE, MAX_NOVA_FORCE, 0)
+radius_slider = ravenui.Slider(ui, "Nova Radius", (316, 10), START_NOVA_RADIUS, MAX_NOVA_RADIUS, 1)
+mass_slider = ravenui.Slider(ui, "Initial P Mass", (418, 10), START_PARTICLE_MASS, MAX_PARTICLE_MASS, 1)
+ratio_slider = ravenui.Slider(ui, "Collide Ratio", (520, 10), START_COLLIDE_RATIO, MAX_COLLIDE_RATIO, 0.3, True)
+start_button = ravenui.Button(ui, "Start", (622, 10), start_sim, bg=(50, 200, 20))
+pause_button = ravenui.Button(ui, "Pause", (622, 10), pause_sim, bg=(50, 200, 20))
+pause_button.hide()
+reset_button = ravenui.Button(ui, "Reset", (724, 10), new, bg=(50, 200, 20))
 
 def rndint(num): return int(round(num))
 
@@ -73,11 +106,11 @@ class Particle(object):
                 el = choice(list(self.composition.keys()))
                 self.composition[el] += perc_left
             if self.composition['H'] + self.composition['O'] + self.composition['N'] + self.composition['Ne']   > 0.80: #Gass based particles
-                self.mass = randrange(1, int(MAX_MASS/4))
+                self.mass = randrange(1, int(mass_slider.val/4))
             elif self.composition['Fe'] + self.composition['C'] + self.composition['Mg'] + self.composition['Si'] + self.composition['S'] > 0.7: #Solid based particles
-                self.mass = randrange(int(MAX_MASS/5), MAX_MASS)
+                self.mass = randrange(int(mass_slider.val/5), mass_slider.val)
             else:
-                self.mass = randrange(1, MAX_MASS) #Other particles
+                self.mass = randrange(1, mass_slider.val) #Other particles
 
         #Sets particle color based on elemental composition
         self.color = [0, 0, 0]
@@ -111,7 +144,7 @@ class Particle(object):
             #self.color = ELEMENT_COLORS[element_type]
 
         if pos == None:
-            randdisp = randrange(ceil(STAR_RADIUS/self.mass), STAR_RADIUS + 1)
+            randdisp = randrange(ceil(radius_slider.val/self.mass), radius_slider.val + 1)
             randveclength = randrange(0, randdisp)
             randvec = vec(randveclength, 0)
             randangle = randrange(0, 361)
@@ -124,7 +157,7 @@ class Particle(object):
         if vel:
             self.vel = vel
         else:
-            force = START_FORCE
+            force = force_slider.val
             a = force / self.mass
             t = 1
             vel = a * t
@@ -132,8 +165,11 @@ class Particle(object):
             randangle = randrange(0, 361)
             self.vel = self.vel.rotate(randangle)
             self.vel = [self.vel.x, self.vel.y]
-            self.dir = vec(self.vel[0], self.vel[1]).normalize()
-            self.exp_force = self.dir * START_FORCE
+            try:
+                self.dir = vec(self.vel[0], self.vel[1]).normalize()
+            except:
+                self.dir = vec(0, 0)
+            self.exp_force = self.dir * force_slider.val
 
         self.r = RADIUS_SCALE * (self.mass ** (1.0 / 3.0))
         self.collide_r = self.r * COLLIDE_RATIO
@@ -165,17 +201,16 @@ class Particle(object):
 
 def setup_particles():
     global particles, num_particles, new_particles, start, exploding, dead_particles, biggest
-    num_particles = num_particles_orig
+    num_particles = int(particles_slider.val)
     new_particles = []
     dead_particles = []
     exploding = True
     biggest = None
     particles = [Particle() for i in range(num_particles)]
 
-def get_input():
+def events():
     keys_pressed = pygame.key.get_pressed()
     mouse_buttons = pygame.mouse.get_pressed()
-    mouse_position = pygame.mouse.get_pos()
     mouse_rel = pygame.mouse.get_rel()
     for event in pygame.event.get():
         if event.type == QUIT:
@@ -185,6 +220,8 @@ def get_input():
                 return False
             elif event.key == K_r:
                 new()  # reset
+        else: # Send events to the UI
+            ui.events(event.type)
     return True
 
 def add_forces(particle1, particle2, cycle = None):
@@ -199,6 +236,7 @@ def add_forces(particle1, particle2, cycle = None):
         min_dist = particle1.r + particle2.r
         if r < min_dist:
             r = min_dist
+    G = gravity_slider.val
     force_magnitude = (G * particle1.mass * particle2.mass) / r_squared  # F=G*M1*M2/(r^2)
     dx_normalized_scaled = (dx / r) * force_magnitude
     dy_normalized_scaled = (dy / r) * force_magnitude
@@ -231,7 +269,7 @@ def add_forces(particle1, particle2, cycle = None):
             particle1.forces[1] += randy
 
 
-def move():
+def move_particles():
     global new_particles, dead_particles, num_particles, particles, biggest
     surface.fill((25, 0, 0))
     new_particles = []
@@ -248,10 +286,13 @@ def move():
             if p in dead_particles:
                 continue
             temp.append(p)
-    pygame.display.flip()
     particles = temp
     particles += new_particles
     num_particles = len(particles)
+
+def draw_ui():
+    ui.draw()
+    pygame.display.flip()
 
 def explode(cycle):
     surface.fill((25, 0, 0))
@@ -261,7 +302,7 @@ def explode(cycle):
                 add_forces(particles[j], particles[k], cycle)
             p.draw(surface)
             p.move(dt / float(movement_substeps))
-    pygame.display.flip()
+    draw_ui()
 
 def collide(p1, p2):
     global particles, num_particles, dead_particles, new_particles, biggest
@@ -322,25 +363,25 @@ def find_largest():
     return largest
 
 
-def new():
-    global exploding, set_center, start
-    setup_particles()
-    for i in range(0, START_CYCLES):
-        explode(i)
-    exploding = False
-    set_center = FIX_CENTER
-    start = pygame.time.get_ticks()
-
 def main():
-    global set_center
+    global set_center, running, paused
+    while not running: #loop used for setting initial conditions
+        if not events(): break
+        ui.update()
+        draw_ui()
+        clock.tick(target_fps)
+
     new()
-    while True:
+    while running:
         if set_center and (find_largest().mass > CENTER_CRIT_MASS):
-            print('center set')
+            #print('center set')
             set_fixed_center()
             set_center = False
-        if not get_input(): break
-        move()
+        if not events(): break
+        if not paused:
+            move_particles()
+        ui.update()
+        draw_ui()
         if edge_clamp: clamp_to_edges()
         clock.tick(target_fps)
     pygame.quit()
