@@ -49,9 +49,11 @@ class Element():
     def __init__(self, ui):
         self.ui = ui
         self.screen = ui.screen
+        self.visible = True
         ui.elements.append(self)
 
     def hide(self):
+        self.visible = False
         if self in self.ui.elements:
             self.ui.elements.remove(self)
             self.ui.hidden_elements.append(self)
@@ -63,6 +65,7 @@ class Element():
             self.ui.hidden_sliders.append(self)
 
     def show(self):
+        self.visible = True
         if self in self.ui.hidden_elements:
             self.ui.hidden_elements.remove(self)
             self.ui.elements.append(self)
@@ -82,14 +85,15 @@ class Button(Element):
         self.bg = bg  # actual background color, can change on mouseover
         self.fg = fg  # text color
         self.size = size
+        self.pos = pos
 
         self.font = pygame.font.SysFont(font_name, font_size)
         self.txt = txt
         self.txt_surf = self.font.render(self.txt, 1, self.fg)
         self.txt_rect = self.txt_surf.get_rect(center=[s//2 for s in self.size])
 
-        self.surface = pygame.surface.Surface(size)
-        self.rect = self.surface.get_rect(topleft=pos)
+        self.surface = pygame.surface.Surface(self.size)
+        self.rect = self.surface.get_rect(topleft=self.pos)
 
         self.call_back_ = action
 
@@ -109,6 +113,14 @@ class Button(Element):
         pos = pygame.mouse.get_pos()
         if self.rect.collidepoint(pos):
             self.call_back_()
+
+    def update_text(self, new_text):
+        self.txt = new_text
+        self.txt_surf = self.font.render(self.txt, 1, self.fg)
+        self.txt_rect = self.txt_surf.get_rect(center=[s//2 for s in self.size])
+
+        self.surface = pygame.surface.Surface(self.size)
+        self.rect = self.surface.get_rect(topleft=self.pos)
 
 class Slider(Element):
     def __init__(self, ui, txt, pos, val, maxi, mini, float = False, font_name="Veranda", font_size=17):

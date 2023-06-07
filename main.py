@@ -29,6 +29,8 @@ COLLIDE_RATIO = 0.5
 new_particles = []
 dead_particles = []
 start = 0
+time = 0
+pause_time = 0
 running = False
 exploding = True
 set_center = FIX_CENTER
@@ -43,17 +45,20 @@ pygame.display.set_caption("Space Simulator")
 surface = pygame.display.set_mode(screen_size)
 
 def start_sim():
-    global running, paused
+    global running, paused, start
     running = True
-    pause_button.show()
     start_button.hide()
+    if start > 0:
+        pause_button.show()
     paused = False
 
 def pause_sim():
-    global paused
-    start_button.show()
-    pause_button.hide()
-    paused = True
+    global paused, pause_time
+    if pause_button.visible:
+        start_button.show()
+        pause_button.hide()
+        pause_time = pygame.time.get_ticks()
+        paused = True
 
 def new():
     global exploding, set_center, start, paused, running, COLLIDE_RATIO
@@ -69,6 +74,10 @@ def new():
     set_center = FIX_CENTER
     start = pygame.time.get_ticks()
 
+def reset_timer():
+    pass
+
+
 # UI elements
 ui = ravenui.UI(surface)
 particles_slider = ravenui.Slider(ui, "Particles", (10, 10), START_NUM_PARTICLES, MAX_NUM_PARTICLES, 1)
@@ -80,7 +89,8 @@ ratio_slider = ravenui.Slider(ui, "Collide Ratio", (520, 10), START_COLLIDE_RATI
 start_button = ravenui.Button(ui, "Start", (622, 10), start_sim, bg=(50, 200, 20))
 pause_button = ravenui.Button(ui, "Pause", (622, 10), pause_sim, bg=(50, 200, 20))
 pause_button.hide()
-reset_button = ravenui.Button(ui, "Reset", (724, 10), new, bg=(50, 200, 20))
+reset_button = ravenui.Button(ui, "Reset", (724, 10), new, bg=(50, 200, 20), fg = BLACK, size=(100, 24))
+timer = ravenui.Button(ui, "Time: 0", (724, 36), reset_timer, bg=(50, 200, 20), fg = BLACK, size=(100, 24))
 
 def rndint(num): return int(round(num))
 
@@ -362,6 +372,15 @@ def find_largest():
             largest = p
     return largest
 
+def update_timer():
+    global pause_time, start
+    if pause_time != 0:
+        start += pygame.time.get_ticks() - pause_time
+        pause_time = 0
+    time = floor((pygame.time.get_ticks() - start) / 1000)
+    new_text = "Time: " + str(time) + " s"
+    timer.update_text(new_text)
+
 
 def main():
     global set_center, running, paused
@@ -383,6 +402,8 @@ def main():
         ui.update()
         draw_ui()
         if edge_clamp: clamp_to_edges()
+        if not paused:
+            update_timer()
         clock.tick(target_fps)
     pygame.quit()
 

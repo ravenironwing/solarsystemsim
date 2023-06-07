@@ -29,5 +29,5 @@ START_COLLIDE_RATIO = 0.5 # The percentage the particles collide at.
 MAX_COLLIDE_RATIO = 1
 START_G = 0.8 # Value of the gravitational constant.... Not set to the real value to speed things up.
 MAX_G = 5.0
-KILL_BOUND = 200 # The off screen distance to kill particles that go off the screen.
+KILL_BOUND = 0 # The off screen distance to kill particles that go off the screen.
 
